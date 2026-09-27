@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.WebSockets;
 
-namespace Savannah.OrderBook;
+namespace Binance.LocalOrderBook;
 
 public sealed class BinanceWorker(HttpClient httpClient, string symbol)
 {

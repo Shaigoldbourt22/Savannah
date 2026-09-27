@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
-namespace Savannah.OrderBook;
+namespace Binance.LocalOrderBook;
 
 public static class BinanceMessages
 {

@@ -13,8 +13,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Restore
-        run: dotnet restore Savannah.sln
+        run: dotnet restore Binance.LocalOrderBook.sln
       - name: Build
-        run: dotnet build Savannah.sln --configuration Release --no-restore -warnaserror
+        run: dotnet build Binance.LocalOrderBook.sln --configuration Release --no-restore -warnaserror
       - name: Test
-        run: dotnet test Savannah.sln --configuration Release --no-build --no-restore --filter 'Category!=Stress&Category!=Staging'
+        run: dotnet test Binance.LocalOrderBook.sln --configuration Release --no-build --no-restore --filter 'Category!=Stress&Category!=Staging'

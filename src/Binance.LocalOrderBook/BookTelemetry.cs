@@ -1,4 +1,4 @@
-namespace Savannah.OrderBook;
+namespace Binance.LocalOrderBook;
 
 internal sealed record BookTelemetrySnapshot(
     long Received,

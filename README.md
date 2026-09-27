@@ -1,4 +1,4 @@
-# Savannah order book
+# Binance local order book
 
 A one-pair Binance Spot price-level book. It connects to Binance's market-data-only diff-depth WebSocket and snapshot API, joins a REST snapshot with buffered updates, then keeps the known price levels in memory. It does not place trades or claim to represent price levels outside Binance's snapshot and received changes.
 
@@ -7,7 +7,7 @@ A one-pair Binance Spot price-level book. It connects to Binance's market-data-o
 Requires the .NET 10 SDK and network access to Binance.
 
 ```powershell
-dotnet run --project src\Savannah.OrderBook -- BNBBTC
+dotnet run --project src\Binance.LocalOrderBook -- BNBBTC
 ```
 
 The pair can also be set with the `SYMBOL` environment variable. Ctrl+C stops the worker. It prints the book before and after the first applicable update. Every 30 seconds it writes a `readiness symbol=... book_ready=0|1` line, even when no updates arrive. The share of ready samples out of expected 30-second samples estimates book-ready uptime; count missing samples as unavailable. Readiness changes are logged immediately as well. A zero quantity removes a price; an existing quantity is replaced, not added.
@@ -21,18 +21,18 @@ Every 30 seconds, a `telemetry` line reports cumulative received, applied, skipp
 ## Build and check
 
 ```powershell
-dotnet restore Savannah.sln
-dotnet build Savannah.sln --no-restore -warnaserror
-dotnet test Savannah.sln --no-restore --filter 'Category!=Stress&Category!=Staging'
+dotnet restore Binance.LocalOrderBook.sln
+dotnet build Binance.LocalOrderBook.sln --no-restore -warnaserror
+dotnet test Binance.LocalOrderBook.sln --no-restore --filter 'Category!=Stress&Category!=Staging'
 ```
 
-CI uses the same build and offline tests. Live Binance availability is not required for CI. Run `dotnet test Savannah.sln --filter Category=Stress` for the optional one-pair benchmark, or use `Category=Staging` for a check that connects to live Binance.
+CI uses the same build and offline tests. Live Binance availability is not required for CI. Run `dotnet test Binance.LocalOrderBook.sln --filter Category=Stress` for the optional one-pair benchmark, or use `Category=Staging` for a check that connects to live Binance.
 
 ## Container
 
 ```powershell
-docker build -t savannah-orderbook:local .
-docker run --rm -e SYMBOL=BNBBTC savannah-orderbook:local
+docker build -t binance-local-order-book:local .
+docker run --rm -e SYMBOL=BNBBTC binance-local-order-book:local
 ```
 
 Deploy as one always-running Container App with ingress disabled and a single replica for the pair. Set `SYMBOL` to the desired Binance Spot pair. On a disconnect, gap, or restart the book is marked not ready, then rebuilt from a new stream and snapshot. The process keeps no durable copy of the book.

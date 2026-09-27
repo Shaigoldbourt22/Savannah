@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Threading.Channels;
 
-namespace Savannah.OrderBook;
+namespace Binance.LocalOrderBook;
 
 internal readonly record struct ReceivedUpdate(byte[] Payload, long ReceivedAt);
 

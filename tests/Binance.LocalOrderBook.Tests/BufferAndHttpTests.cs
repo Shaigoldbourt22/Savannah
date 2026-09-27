@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text;
 using System.Threading.Channels;
-using Savannah.OrderBook;
+using Binance.LocalOrderBook;
 
-namespace Savannah.OrderBook.Tests;
+namespace Binance.LocalOrderBook.Tests;
 
 public class BufferAndHttpTests
 {

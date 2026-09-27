@@ -45,10 +45,10 @@ Binance REST depth snapshot -----------------------> snapshot fetch --+         
                                                                                                 +--> readiness and telemetry logs
 ```
 
-- [Program](./src/Savannah.OrderBook/Program.cs) selects and checks the pair, starts the worker, and handles shutdown.
-- [BinanceWorker](./src/Savannah.OrderBook/BinanceWorker.cs) starts a receiver, fetches snapshots, and consumes queued events in order. The same consumer handles buffered and live events. On a failed attempt, it cancels and awaits the receiver; the next attempt gets a new socket and queue.
-- [BufferedUpdates](./src/Savannah.OrderBook/BufferedUpdates.cs) holds raw messages in arrival order and rejects a write when the queue exceeds its event or byte limit. [BinanceMessages](./src/Savannah.OrderBook/BinanceMessages.cs) parses and checks message fields; the worker checks update-ID continuity before changing the book.
-- [OrderBook](./src/Savannah.OrderBook/OrderBook.cs) stores known buy and sell levels, the last update ID, and readiness. [BookTelemetry](./src/Savannah.OrderBook/BookTelemetry.cs) counts activity and records apply times. Console output includes the first before/after example and periodic readiness and telemetry lines.
+- [Program](./src/Binance.LocalOrderBook/Program.cs) selects and checks the pair, starts the worker, and handles shutdown.
+- [BinanceWorker](./src/Binance.LocalOrderBook/BinanceWorker.cs) starts a receiver, fetches snapshots, and consumes queued events in order. The same consumer handles buffered and live events. On a failed attempt, it cancels and awaits the receiver; the next attempt gets a new socket and queue.
+- [BufferedUpdates](./src/Binance.LocalOrderBook/BufferedUpdates.cs) holds raw messages in arrival order and rejects a write when the queue exceeds its event or byte limit. [BinanceMessages](./src/Binance.LocalOrderBook/BinanceMessages.cs) parses and checks message fields; the worker checks update-ID continuity before changing the book.
+- [OrderBook](./src/Binance.LocalOrderBook/OrderBook.cs) stores known buy and sell levels, the last update ID, and readiness. [BookTelemetry](./src/Binance.LocalOrderBook/BookTelemetry.cs) counts activity and records apply times. Console output includes the first before/after example and periodic readiness and telemetry lines.
 
 ### Book representation and data structure trade-offs
 
@@ -139,7 +139,7 @@ The current process accepts **one pair and one Binance feed**. To add pairs, ass
 
 Horizontal growth should add apps with different pair assignments, not extra replicas consuming the same pair. Pair ownership must also account for overlapping revisions during rollout: without coordination, two workers could both claim to be the authoritative copy. Group sizes and replica resources should be chosen from measured arrival rates, CPU, memory, backlog, and Binance's shared connection and REST rate limits rather than an assumed number of pairs per host.
 
-For another exchange, add a source-specific adapter for its transport, snapshot format, and continuity rules. The price-level book can be reused for normalized price/quantity changes, but each source keeps a separate book and its own update IDs; prices from different exchanges must not be mixed. Today [BinanceWorker](./src/Savannah.OrderBook/BinanceWorker.cs) contains the Binance connection and sync logic, so this adapter split is a future change, not an existing plug-in interface.
+For another exchange, add a source-specific adapter for its transport, snapshot format, and continuity rules. The price-level book can be reused for normalized price/quantity changes, but each source keeps a separate book and its own update IDs; prices from different exchanges must not be mixed. Today [BinanceWorker](./src/Binance.LocalOrderBook/BinanceWorker.cs) contains the Binance connection and sync logic, so this adapter split is a future change, not an existing plug-in interface.
 
 ## Out-of-scope features
 

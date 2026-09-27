@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Savannah.OrderBook.Tests" />
+    <InternalsVisibleTo Include="Binance.LocalOrderBook.Tests" />
   </ItemGroup>
 
 </Project>

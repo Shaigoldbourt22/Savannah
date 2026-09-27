@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Savannah.OrderBook;
+namespace Binance.LocalOrderBook;
 
 public readonly record struct PriceLevel(decimal Price, decimal Quantity);
 

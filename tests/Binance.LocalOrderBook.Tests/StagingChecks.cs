@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using Savannah.OrderBook;
+using Binance.LocalOrderBook;
 using Xunit.Abstractions;
 
-namespace Savannah.OrderBook.Tests;
+namespace Binance.LocalOrderBook.Tests;
 
 public sealed class StagingChecks(ITestOutputHelper output)
 {

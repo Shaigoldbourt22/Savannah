@@ -1,9 +1,9 @@
 using System.Text.RegularExpressions;
-using Savannah.OrderBook;
+using Binance.LocalOrderBook;
 
 if (args.Length > 1)
 {
-    Console.Error.WriteLine("Usage: Savannah.OrderBook [SYMBOL]");
+    Console.Error.WriteLine("Usage: Binance.LocalOrderBook [SYMBOL]");
     return 2;
 }
 
