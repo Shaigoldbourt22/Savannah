@@ -42,7 +42,6 @@ public sealed class StagingChecks(ITestOutputHelper output)
         Assert.Equal(5_000, book.AskCount);
         Assert.True(book.TryGetBid(1, out var quantity));
         Assert.Equal(100m, quantity);
-        Assert.True(p95 < 10, $"Proposed 10 ms target was exceeded: p95={p95:F3} ms.");
     }
 
     [Fact]

@@ -10,17 +10,23 @@ Requires the .NET 10 SDK and network access to Binance.
 dotnet run --project src\Savannah.OrderBook -- BNBBTC
 ```
 
-The pair can also be set with the `SYMBOL` environment variable. Ctrl+C stops the worker. It prints the book before and after the first applicable update, then periodic status lines. A zero quantity removes a price; an existing quantity is replaced, not added.
+The pair can also be set with the `SYMBOL` environment variable. Ctrl+C stops the worker. It prints the book before and after the first applicable update. Every 30 seconds it writes a `readiness symbol=... book_ready=0|1` line, even when no updates arrive. The share of ready samples out of expected 30-second samples estimates book-ready uptime; count missing samples as unavailable. Readiness changes are logged immediately as well. A zero quantity removes a price; an existing quantity is replaced, not added.
+
+## Local telemetry
+
+Every 30 seconds, a `telemetry` line reports cumulative received, applied, skipped, snapshot-request, snapshot-loaded, snapshot-failure, and resync counts. `snapshot_requests_since_report` gives the number of requests since the last line. `apply_avg_ms` and `apply_median_ms` summarize up to 10,000 applied-message timings from that 30-second interval; when there are no samples they show `n/a`. Applying prices is timed separately from the receive-to-apply delay logged every 100 applied messages.
+
+`handled_pct_received` is `(applied + skipped) / received * 100`; `applied_pct_received` is `applied / received * 100`. Both use messages received by this process. Old updates that a snapshot already covers are intentionally skipped. Neither percentage includes messages Binance sent while this worker was disconnected.
 
 ## Build and check
 
 ```powershell
 dotnet restore Savannah.sln
 dotnet build Savannah.sln --no-restore -warnaserror
-dotnet test Savannah.sln --no-restore
+dotnet test Savannah.sln --no-restore --filter 'Category!=Stress&Category!=Staging'
 ```
 
-CI uses the same build and offline tests, excluding `Stress` and `Staging` categories. Live Binance availability is not required for CI.
+CI uses the same build and offline tests. Live Binance availability is not required for CI. Run `dotnet test Savannah.sln --filter Category=Stress` for the optional one-pair benchmark, or use `Category=Staging` for a check that connects to live Binance.
 
 ## Container
 
@@ -42,7 +48,7 @@ az containerapp job execution list -g rg-savannah-staging -n job-savannah-daily
 az containerapp logs show -g rg-savannah-staging -n app-savannah-eu-stage --tail 50
 ```
 
-Binance returned HTTP 451 from East US 2. Staging runs in North Europe; check availability before changing its region.
+Staging runs in North Europe; check Binance endpoint availability before changing its region.
 
 ## Design limits
 

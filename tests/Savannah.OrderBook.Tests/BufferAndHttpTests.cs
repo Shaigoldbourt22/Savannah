@@ -1,11 +1,30 @@
 using System.Net;
 using System.Text;
+using System.Threading.Channels;
 using Savannah.OrderBook;
 
 namespace Savannah.OrderBook.Tests;
 
 public class BufferAndHttpTests
 {
+    [Fact]
+    public async Task ReadinessIsReportedOnTimeEvenWithoutUpdates()
+    {
+        var book = new OrderBook();
+        var reports = Channel.CreateUnbounded<bool>();
+        using var stopping = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var heartbeat = BinanceWorker.ReportReadinessAsync(
+            () => book.IsReady, ready => reports.Writer.TryWrite(ready),
+            TimeSpan.FromMilliseconds(20), stopping.Token);
+
+        Assert.False(await reports.Reader.ReadAsync(stopping.Token));
+        book.MarkReady();
+        Assert.True(await reports.Reader.ReadAsync(stopping.Token));
+
+        stopping.Cancel();
+        await heartbeat;
+    }
+
     [Fact]
     public async Task BufferPreservesOrderAndRefusesOverflow()
     {

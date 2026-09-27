@@ -8,13 +8,49 @@ namespace Savannah.OrderBook;
 public sealed class BinanceWorker(HttpClient httpClient, string symbol)
 {
     private readonly OrderBook _book = new();
-    private long _resyncs;
-    private long _snapshotFailures;
-    private long _appliedEvents;
+    private readonly BookTelemetry _telemetry = new();
+    private long _lastReportedSnapshotRequests;
 
     public OrderBook Book => _book;
 
     public async Task RunAsync(CancellationToken stoppingToken)
+    {
+        using var heartbeatStop = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var heartbeat = ReportReadinessAsync(
+            () => _book.IsReady,
+            ready =>
+            {
+                Console.WriteLine(
+                    $"readiness symbol={symbol} book_ready={(ready ? 1 : 0)} lastUpdateId={_book.LastUpdateId}");
+                LogTelemetry();
+            },
+            TimeSpan.FromSeconds(30), heartbeatStop.Token);
+        try
+        {
+            await RunUpdatesAsync(stoppingToken);
+        }
+        finally
+        {
+            heartbeatStop.Cancel();
+            await heartbeat;
+        }
+    }
+
+    internal static async Task ReportReadinessAsync(
+        Func<bool> isReady, Action<bool> report, TimeSpan interval, CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(interval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+                report(isReady());
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task RunUpdatesAsync(CancellationToken stoppingToken)
     {
         var failures = 0;
         while (!stoppingToken.IsCancellationRequested)
@@ -43,6 +79,7 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
                 } while (snapshot.LastUpdateId < firstEvent.FirstUpdateId);
 
                 _book.Load(snapshot);
+                _telemetry.RecordSnapshotLoaded();
                 Console.WriteLine($"Snapshot loaded for {symbol}: lastUpdateId={snapshot.LastUpdateId}");
 
                 var hasBridged = false;
@@ -70,7 +107,7 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
                 IOException or InvalidDataException or TimeoutException or System.Text.Json.JsonException)
             {
                 failures++;
-                _resyncs++;
+                _telemetry.RecordResync();
                 delay = TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, Math.Min(failures - 1, 5))) *
                     (0.75 + Random.Shared.NextDouble() * 0.5));
                 Console.Error.WriteLine($"Resynchronizing {symbol}: {exception.Message}");
@@ -82,7 +119,7 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
                 socket.Abort();
                 if (receiver is not null)
                     await receiver;
-                Console.WriteLine($"book_ready=0 symbol={symbol} resync_total={_resyncs}");
+                Console.WriteLine($"book_ready=0 symbol={symbol} resync_total={_telemetry.Resyncs}");
             }
 
             if (delay > TimeSpan.Zero)
@@ -96,13 +133,17 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
             throw new IOException("Binance update stream failed.", failure);
         var update = BinanceMessages.ParseEvent(received.Payload, symbol);
         if (!UpdateSequence.ShouldApply(_book.LastUpdateId, update))
+        {
+            _telemetry.RecordSkipped();
             return;
+        }
 
         if (!hasBridged)
             Console.WriteLine("BEFORE UPDATE" + Environment.NewLine + _book.Format(symbol));
 
+        var applyStart = Stopwatch.GetTimestamp();
         _book.Apply(update);
-        _appliedEvents++;
+        _telemetry.RecordApplied(Stopwatch.GetElapsedTime(applyStart).TotalMilliseconds);
         if (!hasBridged)
         {
             hasBridged = true;
@@ -111,14 +152,32 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
             Console.WriteLine($"book_ready=1 symbol={symbol}");
         }
 
-        if (_appliedEvents % 100 == 0)
+        if (_telemetry.Applied % 100 == 0)
         {
             var elapsed = Stopwatch.GetElapsedTime(received.ReceivedAt).TotalMilliseconds;
             Console.WriteLine($"metrics symbol={symbol} book_ready=1 buffered_updates={updates.Count} " +
                 $"update_processing_delay_ms={elapsed.ToString("F3", CultureInfo.InvariantCulture)} " +
-                $"resync_total={_resyncs} snapshot_failures_total={_snapshotFailures}");
+                $"resync_total={_telemetry.Resyncs} snapshot_failures_total={_telemetry.SnapshotFailures}");
         }
     }
+
+    private void LogTelemetry()
+    {
+        var report = _telemetry.Drain();
+        var snapshotRequests = report.SnapshotRequests - _lastReportedSnapshotRequests;
+        _lastReportedSnapshotRequests = report.SnapshotRequests;
+        Console.WriteLine(
+            $"telemetry symbol={symbol} received_total={report.Received} applied_total={report.Applied} " +
+            $"skipped_total={report.Skipped} handled_pct_received={Format(report.HandledPercent, "F2")} " +
+            $"applied_pct_received={Format(report.AppliedPercent, "F2")} " +
+            $"snapshot_requests_total={report.SnapshotRequests} snapshot_requests_since_report={snapshotRequests} " +
+            $"snapshots_loaded_total={report.SnapshotsLoaded} snapshot_failures_total={report.SnapshotFailures} " +
+            $"apply_samples={report.ApplySamples} apply_avg_ms={Format(report.AverageApplyMs, "F3")} " +
+            $"apply_median_ms={Format(report.MedianApplyMs, "F3")} resync_total={report.Resyncs}");
+    }
+
+    private static string Format(double? value, string format) =>
+        value?.ToString(format, CultureInfo.InvariantCulture) ?? "n/a";
 
     internal async Task<DepthSnapshot> FetchSnapshotAsync(CancellationToken stoppingToken)
     {
@@ -127,10 +186,11 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
         try
         {
             var url = $"https://api.binance.com/api/v3/depth?symbol={symbol}&limit=5000";
+            _telemetry.RecordSnapshotRequest();
             using var response = await httpClient.GetAsync(url, timeout.Token);
             if (response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode == 418)
             {
-                _snapshotFailures++;
+                _telemetry.RecordSnapshotFailure();
                 if (!response.Headers.TryGetValues("Retry-After", out var headers) ||
                     headers.Count() != 1 ||
                     !int.TryParse(headers.Single(), NumberStyles.None, CultureInfo.InvariantCulture,
@@ -140,7 +200,10 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
             }
 
             if ((int)response.StatusCode == 451)
+            {
+                _telemetry.RecordSnapshotFailure();
                 throw new InvalidOperationException("Binance market data is unavailable from this Azure region (HTTP 451).");
+            }
 
             response.EnsureSuccessStatusCode();
             var payload = await response.Content.ReadAsByteArrayAsync(timeout.Token);
@@ -148,22 +211,22 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
         }
         catch (OperationCanceledException exception) when (!stoppingToken.IsCancellationRequested)
         {
-            _snapshotFailures++;
+            _telemetry.RecordSnapshotFailure();
             throw new TimeoutException("Binance snapshot request timed out.", exception);
         }
         catch (HttpRequestException)
         {
-            _snapshotFailures++;
+            _telemetry.RecordSnapshotFailure();
             throw;
         }
         catch (System.Text.Json.JsonException)
         {
-            _snapshotFailures++;
+            _telemetry.RecordSnapshotFailure();
             throw;
         }
         catch (InvalidDataException)
         {
-            _snapshotFailures++;
+            _telemetry.RecordSnapshotFailure();
             throw;
         }
     }
@@ -188,6 +251,7 @@ public sealed class BinanceWorker(HttpClient httpClient, string symbol)
                 if (!part.EndOfMessage)
                     continue;
 
+                _telemetry.RecordReceived();
                 updates.Add(message.ToArray());
                 message.SetLength(0);
             }
