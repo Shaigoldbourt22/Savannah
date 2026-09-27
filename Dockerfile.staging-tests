@@ -1,0 +1,10 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+WORKDIR /src
+COPY NuGet.Config Savannah.sln ./
+COPY src/Savannah.OrderBook/Savannah.OrderBook.csproj src/Savannah.OrderBook/
+COPY tests/Savannah.OrderBook.Tests/Savannah.OrderBook.Tests.csproj tests/Savannah.OrderBook.Tests/
+RUN dotnet restore Savannah.sln
+COPY src/Savannah.OrderBook/*.cs src/Savannah.OrderBook/
+COPY tests/Savannah.OrderBook.Tests/*.cs tests/Savannah.OrderBook.Tests/
+RUN dotnet build Savannah.sln --configuration Release --no-restore -warnaserror
+ENTRYPOINT ["/bin/sh", "-c", ": \"${TEST_FILTER:?TEST_FILTER is required}\"; exec dotnet test Savannah.sln --configuration Release --no-build --no-restore --logger 'console;verbosity=detailed' --filter \"$TEST_FILTER\""]

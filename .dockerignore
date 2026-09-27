@@ -1,0 +1,15 @@
+**
+!NuGet.Config
+!Savannah.sln
+!src/
+!src/Savannah.OrderBook/
+!src/Savannah.OrderBook/*.csproj
+!src/Savannah.OrderBook/*.cs
+!tests/
+!tests/Savannah.OrderBook.Tests/
+!tests/Savannah.OrderBook.Tests/*.csproj
+!tests/Savannah.OrderBook.Tests/*.cs
+**/bin/
+**/obj/
+**/bin/**
+**/obj/**

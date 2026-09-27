@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore Savannah.sln
+      - name: Build
+        run: dotnet build Savannah.sln --configuration Release --no-restore -warnaserror
+      - name: Test
+        run: dotnet test Savannah.sln --configuration Release --no-build --no-restore --filter 'Category!=Stress&Category!=Staging'
